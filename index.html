@@ -44,7 +44,9 @@
   .half.serving .role { color: var(--ball); font-weight: 600; }
 
   .points { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0;
-    font-size: min(48vh, 27vw); line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; }
+    font-size: min(62vh, 33vw); line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums;
+    color: #fff; }
+  .points.long { font-size: min(46vh, 22vw); } /* 3 cifras (modo Puntos) */
   .points.word { font-size: min(14vh, 9vw); text-align: center; }
 
   .bottom { display: flex; align-items: center; justify-content: space-between; gap: 2vmin;
@@ -142,8 +144,8 @@ const paintHalf = (el, team, m) => {
     // Lo ven los dos equipos: nada de "ganamos", solo quien gano, por color
     points.textContent = won ? 'Ganador' : ''
   } else {
-    points.className = 'points'
     points.textContent = m.points[team]
+    points.className = 'points' + (points.textContent.length >= 3 ? ' long' : '')
   }
 
   const bottom = el.querySelector('.bottom')
