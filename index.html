@@ -8,23 +8,17 @@
 <title>Marcador Pádel</title>
 <link rel="manifest" href="manifest.webmanifest">
 <style>
-  :root {
-    --bg: #111;
-    --panel: #1c1c1c;
-    --us: #7fd18b;      /* verde pastel, como el reloj */
-    --them: #f28b82;    /* rojo pastel */
-    --gold: #f5c542;
-    --dim: #8a8a8a;
-    --text: #f4f4f4;
-  }
+  :root { --bg: #111; --gold: #f5c542; --dim: #8a8a8a; --text: #f4f4f4; --ball: #d4e157; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; background: var(--bg); color: var(--text);
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     -webkit-tap-highlight-color: transparent; overflow: hidden; }
-  body { display: flex; flex-direction: column; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  body { display: flex; flex-direction: column;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
 
-  header { display: flex; align-items: center; gap: 2vmin; padding: 1.5vmin 3vmin; font-size: 4vmin; color: var(--dim); }
+  header { display: flex; align-items: center; gap: 2.4vmin; padding: 1.2vmin 3vmin; font-size: 3.6vmin; color: var(--dim); }
   #mode { font-weight: 600; color: var(--text); }
+  #history { white-space: nowrap; }
   #status { flex: 1; text-align: center; color: var(--gold); font-weight: 600; }
   #conn { display: flex; align-items: center; gap: 1vmin; font-size: 3vmin; }
   #conn i { width: 2.2vmin; height: 2.2vmin; border-radius: 50%; background: #c62828; display: inline-block; }
@@ -32,105 +26,92 @@
   #conn.wait i { background: #f9a825; }
   header button { background: none; border: 1px solid #444; color: var(--dim); border-radius: 1vmin; font-size: 3vmin; padding: .6vmin 1.6vmin; }
 
-  main { flex: 1; display: flex; flex-direction: column; gap: 2vmin; padding: 0 3vmin 3vmin; min-height: 0; }
-  .team { flex: 1; display: flex; align-items: center; gap: 2.5vmin; background: var(--panel);
-    border-radius: 3vmin; padding: 0 3vmin; border-left: 2vmin solid var(--c); min-height: 0; position: relative; }
-  .team.us { --c: var(--us); }
-  .team.them { --c: var(--them); }
-  .team.won { background: color-mix(in srgb, var(--c) 25%, var(--panel)); }
-  .name { flex: 1; min-width: 0; font-size: 7vmin; font-weight: 700; color: var(--c);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
-  .serve { width: 5vmin; height: 5vmin; border-radius: 50%; background: #d4e157;
-    box-shadow: 0 0 2vmin #d4e157; visibility: hidden; flex: none; }
-  .team.serving .serve { visibility: visible; }
-  .sets { display: flex; gap: 1.2vmin; }
-  .sets span { width: 7vmin; text-align: center; font-size: 6vmin; color: var(--dim);
-    font-variant-numeric: tabular-nums; }
-  .sets span.win { color: var(--text); font-weight: 700; }
-  .games { width: 13vmin; text-align: center; font-size: 12vmin; font-weight: 700;
-    font-variant-numeric: tabular-nums; background: #000; border-radius: 2vmin; }
-  .points { width: 26vmin; text-align: center; font-size: 22vmin; line-height: 1; font-weight: 800;
-    font-variant-numeric: tabular-nums; color: var(--c); }
+  /* Izquierda: el equipo que saca. Derecha: el que resta. */
+  main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.6vmin;
+    padding: 0 2vmin 2vmin; min-height: 0; }
+  .half { display: flex; flex-direction: column; justify-content: space-between; min-height: 0;
+    border-radius: 3vmin; padding: 1.4vmin 2.4vmin 1.6vmin; border: .8vmin solid transparent;
+    background: var(--bgc); color: var(--c); }
+  .half.us { --c: #8fe0a4; --bgc: #16331f; --vivid: #43c463; --line: #2c5a3a; }
+  .half.them { --c: #f4a8a8; --bgc: #3a1a1a; --vivid: #e53935; --line: #6a3030; }
+  .half.serving { border-color: var(--vivid); }
+  .half.won { background: var(--vivid); color: #fff; --line: rgba(255,255,255,.4); }
+
+  .top { display: flex; align-items: center; gap: 1.2vmin; font-size: 3.6vmin; font-weight: 600; min-height: 4.6vmin; }
+  .ball { width: 3.6vmin; height: 3.6vmin; border-radius: 50%; background: var(--ball); visibility: hidden; flex: none; }
+  .half.serving .ball { visibility: visible; }
+  .role { color: var(--dim); font-weight: 400; }
+  .half.serving .role { color: var(--ball); font-weight: 600; }
+
+  .points { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0;
+    font-size: min(48vh, 27vw); line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .points.word { font-size: min(14vh, 9vw); text-align: center; }
+
+  .bottom { display: flex; align-items: center; justify-content: space-between; gap: 2vmin;
+    border-top: .3vmin solid var(--line); padding-top: 1.2vmin; font-size: 3.4vmin; }
+  .bottom.off { display: none; }
+  .games { font-size: 10vmin; line-height: 1; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; }
+  .pips { display: flex; gap: 1vmin; align-items: center; }
+  .pip { width: 3.4vmin; height: 3.4vmin; border-radius: 50%; border: .5vmin solid var(--c); }
+  .pip.on { background: var(--c); }
 
   #overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
     background: rgba(0,0,0,.72); font-size: 7vmin; font-weight: 700; text-align: center; padding: 5vmin; }
   #overlay.show { display: flex; }
   #overlay small { display: block; font-size: 3.6vmin; font-weight: 400; color: var(--dim); margin-top: 2vmin; }
 
-  @media (orientation: landscape) {
-    .points { width: 40vmin; font-size: 29vmin; }
-    .games { width: 16vmin; font-size: 15vmin; }
-  }
+  /* Solo en horizontal: en vertical se pide girar el movil */
+  #turn { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    background: var(--bg); font-size: 7vmin; font-weight: 700; text-align: center; padding: 8vmin; }
   @media (orientation: portrait) {
-    .team { flex-wrap: wrap; align-content: center; padding: 3vmin; }
-    .name { flex-basis: 100%; }
-    .points { width: auto; flex: 1; text-align: right; }
+    #turn { display: flex; }
   }
 </style>
 </head>
 <body>
 <header>
   <span id="mode">Marcador Pádel</span>
+  <span id="history"></span>
   <span id="status"></span>
   <span id="conn" class="wait"><i></i><span id="connText">Conectando…</span></span>
   <button id="fs" type="button" title="Pantalla completa">⛶</button>
 </header>
 <main>
-  <section class="team them" id="t1">
-    <div class="name" data-team="1">Ellos</div>
-    <div class="serve"></div>
-    <div class="sets"></div>
-    <div class="games"></div>
+  <section class="half us" id="hl">
+    <div class="top"><span class="ball"></span><span class="role"></span></div>
     <div class="points">0</div>
+    <div class="bottom"><span class="games"></span><span class="pips"></span></div>
   </section>
-  <section class="team us" id="t0">
-    <div class="name" data-team="0">Nosotros</div>
-    <div class="serve"></div>
-    <div class="sets"></div>
-    <div class="games"></div>
+  <section class="half them" id="hr">
+    <div class="top"><span class="ball"></span><span class="role"></span></div>
     <div class="points">0</div>
+    <div class="bottom"><span class="games"></span><span class="pips"></span></div>
   </section>
 </main>
 <div id="overlay"></div>
+<div id="turn">Pon el móvil en horizontal</div>
 
 <script>
 'use strict'
 
 // ---------------------------------------------------------------- canal
-// Mismo canal que lib/feed.js en el reloj. Se puede cambiar por la URL:
+// Mismo canal que lib/feed.js en el reloj. La pagina se publica en un repositorio
+// publico, asi que el nombre del canal no va dentro: se pasa una vez por la URL
 //   ?t=<topic>   ntfy.sh
 //   ?db=<url>    Firebase Realtime Database (la ruta, sin ".json")
 //   ?demo=1      partido de mentira, para ver el marcador sin el reloj
-// La pagina se publica en un repositorio publico, asi que el nombre del canal
-// no va dentro: se pasa una vez por la URL (?t=...) y la pagina lo recuerda.
+// y la pagina lo recuerda.
 const params = new URLSearchParams(location.search)
 
 const $ = (id) => document.getElementById(id)
-const teams = [$('t0'), $('t1')]
+const halves = [$('hl'), $('hr')] // izquierda (saca) y derecha (resta)
 
 let current = null // ultima vista pintada
-
-// --------------------------------------------------------------- nombres
-const NAME_KEY = 'padel_names'
-const defaultNames = ['Nosotros', 'Ellos']
-const loadNames = () => {
-  try { return JSON.parse(localStorage.getItem(NAME_KEY)) || defaultNames.slice() }
-  catch (e) { return defaultNames.slice() }
-}
-let names = loadNames()
-const paintNames = () => teams.forEach((el, t) => { el.querySelector('.name').textContent = names[t] })
-document.querySelectorAll('.name').forEach((el) => el.addEventListener('click', () => {
-  const t = Number(el.dataset.team)
-  const value = prompt('Nombre del equipo', names[t])
-  if (value === null) return
-  names[t] = value.trim() || defaultNames[t]
-  localStorage.setItem(NAME_KEY, JSON.stringify(names))
-  paintNames()
-}))
-paintNames()
+let leftTeam = 0 // equipo que ocupa la mitad izquierda (0 = nosotros, 1 = ellos)
 
 // --------------------------------------------------------------- pintar
 const MODE_NAMES = { normal: 'Partido', americana: 'Americana', tiebreak: 'Tie-break', puntos: 'Puntos' }
+const SETS_TO_WIN = 2
 
 const showOverlay = (html) => {
   const o = $('overlay')
@@ -138,24 +119,74 @@ const showOverlay = (html) => {
   o.classList.toggle('show', !!html)
 }
 
+// Que equipo va a la izquierda. Con el saque cambiando por juegos, el que saca
+// va a la izquierda y las mitades se intercambian cuando cambia. En el tie-break
+// y en el modo Puntos el saque cambia cada 2 puntos: ahi las mitades se quedan
+// como estaban al empezar (0-0) para que no salten.
+const placeTeams = (m) => {
+  if (m.serverTeam === null) return
+  const frozen = m.tiebreak || m.mode === 'puntos' || m.mode === 'tiebreak'
+  if (!frozen) leftTeam = m.serverTeam
+  else if (m.points[0] === '0' && m.points[1] === '0') leftTeam = m.serverTeam
+}
+
+const paintHalf = (el, team, m) => {
+  const serving = m.winner === null && m.serverTeam === team
+  const won = m.winner === team
+  el.className = 'half ' + (team === 0 ? 'us' : 'them') + (serving ? ' serving' : '') + (won ? ' won' : '')
+  el.querySelector('.role').textContent = m.winner !== null || m.serverTeam === null ? '' : serving ? 'saca' : 'resta'
+
+  const points = el.querySelector('.points')
+  if (m.winner !== null) {
+    points.className = 'points word'
+    // Lo ven los dos equipos: nada de "ganamos", solo quien gano, por color
+    points.textContent = won ? 'Ganador' : ''
+  } else {
+    points.className = 'points'
+    points.textContent = m.points[team]
+  }
+
+  const bottom = el.querySelector('.bottom')
+  const showSets = m.mode === 'normal'
+  const showGames = m.mode === 'normal' || m.mode === 'americana'
+  bottom.classList.toggle('off', !showGames)
+  el.querySelector('.games').textContent = showGames ? m.games[team] : ''
+  const pips = el.querySelector('.pips')
+  pips.innerHTML = ''
+  if (showSets) for (let i = 0; i < SETS_TO_WIN; i++) {
+    const pip = document.createElement('span')
+    pip.className = 'pip' + (i < m.setsWon[team] ? ' on' : '')
+    pips.appendChild(pip)
+  }
+}
+
 const render = (view) => {
   const m = view && view.match
   if (!m) {
     $('mode').textContent = 'Marcador Pádel'
+    $('history').textContent = ''
     $('status').textContent = ''
-    teams.forEach((el) => {
-      el.classList.remove('serving', 'won')
+    halves.forEach((el, i) => {
+      el.className = 'half ' + (i === 0 ? 'us' : 'them')
+      el.querySelector('.role').textContent = ''
       el.querySelector('.points').textContent = '0'
-      el.querySelector('.games').textContent = ''
-      el.querySelector('.sets').innerHTML = ''
+      el.querySelector('.points').className = 'points'
+      el.querySelector('.bottom').classList.add('off')
     })
     showOverlay('Esperando al reloj…<small>Abre un partido en el reloj</small>')
     return
   }
 
+  placeTeams(m)
+  paintHalf(halves[0], leftTeam, m)
+  paintHalf(halves[1], 1 - leftTeam, m)
+
   $('mode').textContent = MODE_NAMES[m.mode] || m.mode
+  $('history').textContent = m.mode === 'normal'
+    ? m.sets.map((s, i) => (i + 1) + '.º ' + s[0] + '-' + s[1]).join(' · ')
+    : ''
   let status = ''
-  if (m.winner !== null) status = 'Ganan ' + names[m.winner]
+  if (m.winner !== null) status = 'Partido terminado'
   else if (m.pending === 'server1') status = 'Eligiendo quién saca'
   else if (m.pending === 'server2') status = 'Eligiendo quién saca ahora'
   else if (m.pending === 'deuce') status = '40-40: ¿punto de oro o ventajas?'
@@ -163,24 +194,6 @@ const render = (view) => {
   else if (m.tiebreak && m.mode === 'normal') status = 'Tie-break'
   else if (m.deuceRule === 'golden' && m.points[0] === '40' && m.points[1] === '40') status = 'Punto de oro'
   $('status').textContent = status
-
-  const showSets = m.mode === 'normal'
-  const showGames = m.mode === 'normal' || m.mode === 'americana'
-  teams.forEach((el, t) => {
-    el.classList.toggle('serving', m.winner === null && m.serverTeam === t)
-    el.classList.toggle('won', m.winner === t)
-    el.querySelector('.points').textContent = m.winner !== null ? '' : m.points[t]
-    el.querySelector('.games').textContent = showGames ? m.games[t] : ''
-    el.querySelector('.games').style.display = showGames ? '' : 'none'
-    const sets = el.querySelector('.sets')
-    sets.innerHTML = ''
-    if (showSets) m.sets.forEach((s) => {
-      const span = document.createElement('span')
-      span.textContent = s[t]
-      if (s[t] > s[1 - t]) span.className = 'win'
-      sets.appendChild(span)
-    })
-  })
 
   showOverlay(view.live || m.winner !== null ? '' : 'Partido en pausa<small>El reloj está en el menú</small>')
 }
@@ -281,9 +294,12 @@ document.addEventListener('visibilitychange', keepAwake)
 document.addEventListener('click', keepAwake)
 keepAwake()
 
+// Pantalla completa; en Android ademas se fija en horizontal
 $('fs').addEventListener('click', () => {
-  if (document.fullscreenElement) document.exitFullscreen()
-  else document.documentElement.requestFullscreen().catch(() => {})
+  if (document.fullscreenElement) { document.exitFullscreen(); return }
+  document.documentElement.requestFullscreen()
+    .then(() => screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape'))
+    .catch(() => {})
 })
 </script>
 </body>
