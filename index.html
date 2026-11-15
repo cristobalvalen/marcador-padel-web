@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111111">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Marcador Pádel</title>
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  :root {
+    --bg: #111;
+    --panel: #1c1c1c;
+    --us: #7fd18b;      /* verde pastel, como el reloj */
+    --them: #f28b82;    /* rojo pastel */
+    --gold: #f5c542;
+    --dim: #8a8a8a;
+    --text: #f4f4f4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-tap-highlight-color: transparent; overflow: hidden; }
+  body { display: flex; flex-direction: column; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+
+  header { display: flex; align-items: center; gap: 2vmin; padding: 1.5vmin 3vmin; font-size: 4vmin; color: var(--dim); }
+  #mode { font-weight: 600; color: var(--text); }
+  #status { flex: 1; text-align: center; color: var(--gold); font-weight: 600; }
+  #conn { display: flex; align-items: center; gap: 1vmin; font-size: 3vmin; }
+  #conn i { width: 2.2vmin; height: 2.2vmin; border-radius: 50%; background: #c62828; display: inline-block; }
+  #conn.ok i { background: #43a047; }
+  #conn.wait i { background: #f9a825; }
+  header button { background: none; border: 1px solid #444; color: var(--dim); border-radius: 1vmin; font-size: 3vmin; padding: .6vmin 1.6vmin; }
+
+  main { flex: 1; display: flex; flex-direction: column; gap: 2vmin; padding: 0 3vmin 3vmin; min-height: 0; }
+  .team { flex: 1; display: flex; align-items: center; gap: 2.5vmin; background: var(--panel);
+    border-radius: 3vmin; padding: 0 3vmin; border-left: 2vmin solid var(--c); min-height: 0; position: relative; }
+  .team.us { --c: var(--us); }
+  .team.them { --c: var(--them); }
+  .team.won { background: color-mix(in srgb, var(--c) 25%, var(--panel)); }
+  .name { flex: 1; min-width: 0; font-size: 7vmin; font-weight: 700; color: var(--c);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  .serve { width: 5vmin; height: 5vmin; border-radius: 50%; background: #d4e157;
+    box-shadow: 0 0 2vmin #d4e157; visibility: hidden; flex: none; }
+  .team.serving .serve { visibility: visible; }
+  .sets { display: flex; gap: 1.2vmin; }
+  .sets span { width: 7vmin; text-align: center; font-size: 6vmin; color: var(--dim);
+    font-variant-numeric: tabular-nums; }
+  .sets span.win { color: var(--text); font-weight: 700; }
+  .games { width: 13vmin; text-align: center; font-size: 12vmin; font-weight: 700;
+    font-variant-numeric: tabular-nums; background: #000; border-radius: 2vmin; }
+  .points { width: 26vmin; text-align: center; font-size: 22vmin; line-height: 1; font-weight: 800;
+    font-variant-numeric: tabular-nums; color: var(--c); }
+
+  #overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    background: rgba(0,0,0,.72); font-size: 7vmin; font-weight: 700; text-align: center; padding: 5vmin; }
+  #overlay.show { display: flex; }
+  #overlay small { display: block; font-size: 3.6vmin; font-weight: 400; color: var(--dim); margin-top: 2vmin; }
+
+  @media (orientation: landscape) {
+    .points { width: 40vmin; font-size: 29vmin; }
+    .games { width: 16vmin; font-size: 15vmin; }
+  }
+  @media (orientation: portrait) {
+    .team { flex-wrap: wrap; align-content: center; padding: 3vmin; }
+    .name { flex-basis: 100%; }
+    .points { width: auto; flex: 1; text-align: right; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <span id="mode">Marcador Pádel</span>
+  <span id="status"></span>
+  <span id="conn" class="wait"><i></i><span id="connText">Conectando…</span></span>
+  <button id="fs" type="button" title="Pantalla completa">⛶</button>
+</header>
+<main>
+  <section class="team them" id="t1">
+    <div class="name" data-team="1">Ellos</div>
+    <div class="serve"></div>
+    <div class="sets"></div>
+    <div class="games"></div>
+    <div class="points">0</div>
+  </section>
+  <section class="team us" id="t0">
+    <div class="name" data-team="0">Nosotros</div>
+    <div class="serve"></div>
+    <div class="sets"></div>
+    <div class="games"></div>
+    <div class="points">0</div>
+  </section>
+</main>
+<div id="overlay"></div>
+
+<script>
+'use strict'
+
+// ---------------------------------------------------------------- canal
+// Mismo canal que lib/feed.js en el reloj. Se puede cambiar por la URL:
+//   ?t=<topic>   ntfy.sh
+//   ?db=<url>    Firebase Realtime Database (la ruta, sin ".json")
+//   ?demo=1      partido de mentira, para ver el marcador sin el reloj
+// La pagina se publica en un repositorio publico, asi que el nombre del canal
+// no va dentro: se pasa una vez por la URL (?t=...) y la pagina lo recuerda.
+const params = new URLSearchParams(location.search)
+
+const $ = (id) => document.getElementById(id)
+const teams = [$('t0'), $('t1')]
+
+let current = null // ultima vista pintada
+
+// --------------------------------------------------------------- nombres
+const NAME_KEY = 'padel_names'
+const defaultNames = ['Nosotros', 'Ellos']
+const loadNames = () => {
+  try { return JSON.parse(localStorage.getItem(NAME_KEY)) || defaultNames.slice() }
+  catch (e) { return defaultNames.slice() }
+}
+let names = loadNames()
+const paintNames = () => teams.forEach((el, t) => { el.querySelector('.name').textContent = names[t] })
+document.querySelectorAll('.name').forEach((el) => el.addEventListener('click', () => {
+  const t = Number(el.dataset.team)
+  const value = prompt('Nombre del equipo', names[t])
+  if (value === null) return
+  names[t] = value.trim() || defaultNames[t]
+  localStorage.setItem(NAME_KEY, JSON.stringify(names))
+  paintNames()
+}))
+paintNames()
+
+// --------------------------------------------------------------- pintar
+const MODE_NAMES = { normal: 'Partido', americana: 'Americana', tiebreak: 'Tie-break', puntos: 'Puntos' }
+
+const showOverlay = (html) => {
+  const o = $('overlay')
+  o.innerHTML = html || ''
+  o.classList.toggle('show', !!html)
+}
+
+const render = (view) => {
+  const m = view && view.match
+  if (!m) {
+    $('mode').textContent = 'Marcador Pádel'
+    $('status').textContent = ''
+    teams.forEach((el) => {
+      el.classList.remove('serving', 'won')
+      el.querySelector('.points').textContent = '0'
+      el.querySelector('.games').textContent = ''
+      el.querySelector('.sets').innerHTML = ''
+    })
+    showOverlay('Esperando al reloj…<small>Abre un partido en el reloj</small>')
+    return
+  }
+
+  $('mode').textContent = MODE_NAMES[m.mode] || m.mode
+  let status = ''
+  if (m.winner !== null) status = 'Ganan ' + names[m.winner]
+  else if (m.pending === 'server1') status = 'Eligiendo quién saca'
+  else if (m.pending === 'server2') status = 'Eligiendo quién saca ahora'
+  else if (m.pending === 'deuce') status = '40-40: ¿punto de oro o ventajas?'
+  else if (m.superTb) status = 'Super tie-break'
+  else if (m.tiebreak && m.mode === 'normal') status = 'Tie-break'
+  else if (m.deuceRule === 'golden' && m.points[0] === '40' && m.points[1] === '40') status = 'Punto de oro'
+  $('status').textContent = status
+
+  const showSets = m.mode === 'normal'
+  const showGames = m.mode === 'normal' || m.mode === 'americana'
+  teams.forEach((el, t) => {
+    el.classList.toggle('serving', m.winner === null && m.serverTeam === t)
+    el.classList.toggle('won', m.winner === t)
+    el.querySelector('.points').textContent = m.winner !== null ? '' : m.points[t]
+    el.querySelector('.games').textContent = showGames ? m.games[t] : ''
+    el.querySelector('.games').style.display = showGames ? '' : 'none'
+    const sets = el.querySelector('.sets')
+    sets.innerHTML = ''
+    if (showSets) m.sets.forEach((s) => {
+      const span = document.createElement('span')
+      span.textContent = s[t]
+      if (s[t] > s[1 - t]) span.className = 'win'
+      sets.appendChild(span)
+    })
+  })
+
+  showOverlay(view.live || m.winner !== null ? '' : 'Partido en pausa<small>El reloj está en el menú</small>')
+}
+
+// Solo se pinta si es mas nuevo que lo que hay (los mensajes pueden llegar
+// repetidos o desordenados al reconectar).
+const accept = (view) => {
+  if (!view || typeof view.at !== 'number') return
+  if (current && view.at <= current.at) return
+  current = view
+  render(view)
+}
+
+const setConn = (state, text) => {
+  $('conn').className = state
+  $('connText').textContent = text
+}
+
+// ---------------------------------------------------------------- canales
+const listenNtfy = (topic) => {
+  // since=12h: al conectar (y al reconectar) llegan los mensajes recientes,
+  // y accept() se queda con el mas nuevo, asi que no hace falta pedirlo aparte.
+  const es = new EventSource('https://ntfy.sh/' + encodeURIComponent(topic) + '/sse?since=12h')
+  es.onopen = () => setConn('ok', 'En directo')
+  es.onerror = () => setConn('wait', 'Reconectando…')
+  es.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data)
+      if (msg.event === 'message') accept(JSON.parse(msg.message))
+    } catch (err) { console.warn('mensaje no valido', err) }
+  }
+}
+
+const listenFirebase = (db) => {
+  const url = db.replace(/\/+$/, '') + '.json'
+  const reload = () => fetch(url).then((r) => r.json()).then(accept).catch((e) => console.warn(e))
+  const es = new EventSource(url)
+  es.onopen = () => setConn('ok', 'En directo')
+  es.onerror = () => setConn('wait', 'Reconectando…')
+  es.addEventListener('put', (e) => {
+    const { path, data } = JSON.parse(e.data)
+    if (path === '/') accept(data)
+    else reload()
+  })
+  es.addEventListener('patch', reload)
+}
+
+// Partido de mentira: suma puntos al azar para ver el marcador sin el reloj
+const runDemo = () => {
+  setConn('ok', 'Demo')
+  const labels = ['0', '15', '30', '40']
+  let p = [0, 0], g = [3, 2], sets = [[6, 4]], at = 1, server = 2
+  const tick = () => {
+    const t = Math.random() < 0.5 ? 0 : 1
+    p[t]++
+    if (p[t] >= 4) { p = [0, 0]; g[t]++; server = (server + 1) % 4 }
+    if (g[t] >= 6 && g[t] - g[1 - t] >= 2) { sets.push(g.slice()); g = [0, 0] }
+    const won = [0, 0]; sets.forEach((s) => won[s[0] > s[1] ? 0 : 1]++)
+    accept({ v: 1, at: at++, live: true, match: {
+      mode: 'normal', points: [labels[Math.min(p[0], 3)], labels[Math.min(p[1], 3)]],
+      games: g.slice(), sets: sets.map((s) => s.slice()), setsWon: won, tiebreak: false,
+      superTb: false, deuceRule: 'golden', server, serverTeam: server >> 1, firstServer: 2,
+      pending: null, winner: won[0] >= 2 ? 0 : won[1] >= 2 ? 1 : null } })
+    if (won[0] < 2 && won[1] < 2) setTimeout(tick, 1500)
+  }
+  tick()
+}
+
+// El canal elegido por la URL se recuerda: el acceso de la pantalla de
+// inicio abre la pagina sin parametros.
+const FEED_KEY = 'padel_feed'
+const feedFromUrl = params.get('db') ? { db: params.get('db') } : params.get('t') ? { t: params.get('t') } : null
+if (feedFromUrl) localStorage.setItem(FEED_KEY, JSON.stringify(feedFromUrl))
+let feed = feedFromUrl
+if (!feed) {
+  try { feed = JSON.parse(localStorage.getItem(FEED_KEY)) } catch (e) { feed = null }
+}
+
+render(null)
+if (params.get('demo')) runDemo()
+else if (feed && feed.db) listenFirebase(feed.db)
+else if (feed && feed.t) listenNtfy(feed.t)
+else {
+  setConn('', 'Sin canal')
+  showOverlay('Falta el canal<small>Abre la página con ?t=nombre-del-canal (solo la primera vez)</small>')
+}
+
+// ------------------------------------------- pantalla siempre encendida
+let lock = null
+const keepAwake = async () => {
+  if (!('wakeLock' in navigator) || document.visibilityState !== 'visible' || lock) return
+  try {
+    lock = await navigator.wakeLock.request('screen')
+    lock.addEventListener('release', () => { lock = null })
+  } catch (e) { console.warn('wake lock', e) }
+}
+document.addEventListener('visibilitychange', keepAwake)
+document.addEventListener('click', keepAwake)
+keepAwake()
+
+$('fs').addEventListener('click', () => {
+  if (document.fullscreenElement) document.exitFullscreen()
+  else document.documentElement.requestFullscreen().catch(() => {})
+})
+</script>
+</body>
+</html>
